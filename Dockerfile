@@ -13,6 +13,6 @@ RUN		git clone https://github.com/hmage/cpuminer-opt
 
 WORKDIR		/cpuminer-opt
 
-RUN		autoreconf -f -i -v && CFLAGS="-O3 -maes -mssse3 -mtune=intel -DUSE_ASM" CXXFLAGS="$CFLAGS -std=gnu++11" ./configure --with-curl && make -j8
+RUN		autoreconf -f -i -v && CFLAGS="-O3 -maes -mssse3 -mavx -mtune=intel -DUSE_ASM" CXXFLAGS="$CFLAGS -std=gnu++11" ./configure --with-curl && make -j8
 
 ENTRYPOINT	["./cpuminer"]
