@@ -1,3 +1,6 @@
+AES-optimized cpuminer [![Build Status](https://travis-ci.org/hmage/cpuminer-opt.svg?branch=master)](https://travis-ci.org/hmage/cpuminer-opt)
+======================
+
 cpuminer-opt is a fork of cpuminer-multi by TPruvot with optimizations
 imported from other miners developped by lucas Jones, djm34, Wolf0, pooler,
 Jeff garzik, ig0tik3d, elmad, palmd, and Optiminer, with additional
