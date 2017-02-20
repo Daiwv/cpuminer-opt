@@ -58,7 +58,7 @@ void init_x11evo_ctx()
      sph_echo512_init( &x11evo_ctx.echo );
 #else
      init_echo( &x11evo_ctx.echo, 512 );
-     init_groestl( &x11evo_ctx.groestl );
+     init_groestl( &x11evo_ctx.groestl, 64 );
 #endif
      init_luffa( &x11evo_ctx.luffa, 512 );
      cubehashInit( &x11evo_ctx.cube, 512, 16, 32 );
@@ -71,12 +71,21 @@ void init_x11evo_ctx()
      sph_shavite512_init( &x11evo_ctx.shavite );
 }
 
+/*
 uint32_t getCurrentAlgoSeq(uint32_t current_time, uint32_t base_time)
 {
 	return (current_time - base_time) / (60 * 60 * 24);
 }
+*/
 
-void swap( uint8_t *a, uint8_t *b )
+static inline int getCurrentAlgoSeq( uint32_t current_time )
+{
+        // change once per day
+        return (int) (current_time - INITIAL_DATE) / (60 * 60 * 24);
+}
+
+// swap_vars doesn't work here
+void evo_swap( uint8_t *a, uint8_t *b )
 {
 	uint8_t __tmp = *a;
 	*a = *b;
@@ -92,7 +101,7 @@ void initPerm( uint8_t n[], uint8_t count )
 
 int nextPerm( uint8_t n[], uint32_t count )
 {
-	uint32_t tail, i, j;
+	uint32_t tail = 0, i = 0, j = 0;
 
 	if (unlikely( count <= 1 ))
 		return 0;
@@ -102,10 +111,10 @@ int nextPerm( uint8_t n[], uint32_t count )
 
 	if ( tail > 0 )
             for ( j = count - 1; j>tail && n[j] <= n[tail - 1]; j-- );
-	         swap( &n[tail - 1], &n[j] );
+	         evo_swap( &n[tail - 1], &n[j] );
 
 	for ( i = tail, j = count - 1; i<j; i++, j-- )
-		swap( &n[i], &n[j] );
+		evo_swap( &n[i], &n[j] );
 
 	return ( tail != 0 );
 }
@@ -135,29 +144,37 @@ void getAlgoString( char *str, uint32_t count )
 	//applog(LOG_DEBUG, "nextPerm %s", str);
 }
 
-void evocoin_twisted_code( char *result, char *code )
+static char hashOrder[HASH_FUNC_COUNT + 1] = { 0 };
+static __thread uint32_t s_ntime = UINT32_MAX;
+static int s_seq = -1;
+
+static void evo_twisted_code(uint32_t ntime, char *permstr)
 {
-	uint32_t h32, *be32 = get_stratum_job_ntime();
-	h32 = be32toh(*be32);
-	
-	uint32_t count = getCurrentAlgoSeq(h32, INITIAL_DATE);
-	getAlgoString(code, count);
-	sprintf(result, "_%d_%s_", count, code);
+        int seq = getCurrentAlgoSeq(ntime);
+        if (s_seq != seq)
+        {
+                getAlgoString(permstr, seq);
+                s_seq = seq;
+        }
 }
 
 static inline void x11evo_hash( void *state, const void *input )
 {
    uint32_t hash[16];
-   char completeCode[64];
-   char resultCode[HASH_FUNC_COUNT + 1];
    x11evo_ctx_holder ctx;
    memcpy( &ctx, &x11evo_ctx, sizeof(x11evo_ctx) );
-   evocoin_twisted_code( completeCode, resultCode );
+
+   if ( s_seq == -1 )
+   {
+       uint32_t *data = (uint32_t*) input;
+       const uint32_t ntime = data[17];
+       evo_twisted_code(ntime, hashOrder);
+    }
 
    int i;
-   for ( i = 0; i < strlen(resultCode); i++ )
+   for ( i = 0; i < strlen(hashOrder); i++ )
    {
-	char elem = resultCode[i];
+	char elem = hashOrder[i];
 	uint8_t idx;
 	if (elem >= 'A')
 		idx = elem - 'A' + 10;
@@ -181,8 +198,8 @@ static inline void x11evo_hash( void *state, const void *input )
 	      sph_groestl512( &ctx.groestl, (char*)hash, size );
 	      sph_groestl512_close( &ctx.groestl, (char*)hash );
 #else
-              update_groestl( &ctx.groestl, (char*)hash, 512 );
-              final_groestl( &ctx.groestl, (char*)hash );
+              update_and_final_groestl( &ctx.groestl, (char*)hash,
+                                        (const char*)hash, 512 );
 #endif
 	      break;
 	    case 3:
@@ -198,12 +215,12 @@ static inline void x11evo_hash( void *state, const void *input )
 	      sph_keccak512_close( &ctx.keccak, (char*)hash );
 	      break;
 	    case 6:
-              update_luffa( &ctx.luffa, (char*)hash, 512 );
-              final_luffa( &ctx.luffa, (char*)hash );
+              update_and_final_luffa( &ctx.luffa, (char*)hash,
+                                      (const char*)hash, 64 );
 	      break;
 	    case 7:
-              cubehashUpdate( &ctx.cube, (char*)hash, 64 );
-              cubehashDigest( &ctx.cube, (char*)hash );
+              cubehashUpdateDigest( &ctx.cube, (char*)hash, 
+                                    (const char*)hash, 64 );
 	      break;
 	    case 8:
 	      sph_shavite512( &ctx.shavite, (char*)hash, size );
@@ -218,8 +235,8 @@ static inline void x11evo_hash( void *state, const void *input )
 	      sph_echo512( &ctx.echo, (char*)hash, size );
 	      sph_echo512_close( &ctx.echo, (char*)hash );
 #else
-              update_echo( &ctx.echo, (char*)hash, 512 );
-              final_echo( &ctx.echo, (char*)hash );
+              update_final_echo( &ctx.echo, (char*)hash,
+                                 (const char*)hash, 512 );
 #endif
 	      break;
 	}
@@ -242,8 +259,16 @@ int scanhash_x11evo( int thr_id, struct work* work, uint32_t max_nonce,
 
         swab32_array( endiandata, pdata, 20 );
 
+        int ntime = endiandata[17];
+        if ( ntime != s_ntime  ||  s_seq == -1 )
+        {
+            evo_twisted_code( ntime, hashOrder );
+            s_ntime = ntime;
+        }
+
         uint32_t hmask = 0xFFFFFFFF;
         if ( Htarg  > 0 )
+        {
          if ( Htarg <= 0xF )
             hmask = 0xFFFFFFF0;
          else if ( Htarg <= 0xFF )
@@ -252,6 +277,7 @@ int scanhash_x11evo( int thr_id, struct work* work, uint32_t max_nonce,
             hmask = 0xFFFF000;
          else if ( Htarg <= 0xFFFF )
             hmask = 0xFFFF000;
+        }
 
         do
         {

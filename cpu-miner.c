@@ -106,8 +106,8 @@ int opt_n_threads = 0;
 int64_t opt_affinity = -1L;
 int opt_priority = 0;
 int num_cpus;
-char *rpc_url;
-char *rpc_userpass;
+char *rpc_url = NULL;;
+char *rpc_userpass = NULL;
 char *rpc_user, *rpc_pass;
 char *short_url = NULL;
 static unsigned char pk_script[25] = { 0 };
@@ -132,7 +132,7 @@ uint32_t rpc2_target = 0;
 char *rpc2_job_id = NULL;
 double opt_diff_factor = 1.0;
 uint32_t zr5_pok = 0;
-bool opt_stratum_stats = true;
+bool opt_stratum_stats = false;
 
 uint32_t accepted_count = 0L;
 uint32_t rejected_count = 0L;
@@ -223,6 +223,11 @@ static void affine_to_cpu_mask(int id, unsigned long mask) {
 static inline void drop_policy(void) { }
 static void affine_to_cpu_mask(int id, unsigned long mask) { }
 #endif
+
+// not very useful, just index the arrray directly.
+// but declaring this fuinction in miner.h eliminates
+// an annoying compiler warning for not using a static.
+char* algo_name( enum algos a ) {return algo_names[a];}
 
 void get_currentalgo(char* buf, int sz)
 {
@@ -741,7 +746,7 @@ static int share_result( int result, struct work *work, const char *reason )
    else
         sres = (result ? "Accepted" : "Rejected" );
 
-   // Contrary to convention 100% means zero rejects, exactly 100%. 
+   // Contrary to rounding convention 100% means zero rejects, exactly 100%. 
    // Rates > 99% and < 100% (rejects>0) display 99.9%.
    if ( result )
    {
@@ -763,11 +768,20 @@ static int share_result( int result, struct work *work, const char *reason )
    scale_hash_for_display ( &hashcount, hc_units );
    scale_hash_for_display ( &hashrate, hr_units );
    if ( hc_units[0] )
+   {
       sprintf(hc, "%.2f", hashcount );
+      if ( hashrate < 10 )
+         // very low hashrate, add digits
+         sprintf(hr, "%.4f", hashrate );
+      else
+         sprintf(hr, "%.2f", hashrate );
+   }
    else
+   {
       // no fractions of a hash
       sprintf(hc, "%.0f", hashcount );
-   sprintf(hr, "%.2f", hashrate );
+      sprintf(hr, "%.2f", hashrate );
+   }
 
 #if ((defined(_WIN64) || defined(__WINDOWS__)))
    applog( LOG_NOTICE, "%s %lu/%lu (%s%%), %s %sH, %s %sH/s",
@@ -2142,79 +2156,85 @@ static void *stratum_thread(void *userdata )
 	   }
 	}
 
-	while (!stratum.curl)
-        {
-	   pthread_mutex_lock(&g_work_lock);
-	   g_work_time = 0;
-	   pthread_mutex_unlock(&g_work_lock);
-	   restart_threads();
-           if (!stratum_connect(&stratum, stratum.url)
-              || !stratum_subscribe(&stratum)
-              || !stratum_authorize(&stratum, rpc_user, rpc_pass))
-           {
-               stratum_disconnect(&stratum);
-               if (opt_retries >= 0 && ++failures > opt_retries)
-               {
-                     applog(LOG_ERR, "...terminating workio thread");
-	             tq_push(thr_info[work_thr_id].q, NULL);
-	             goto out;
-	       }
-	       if (!opt_benchmark)
-	          applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
- 
-	       sleep(opt_fail_pause);
-           }
+  while ( !stratum.curl )
+  {
+     pthread_mutex_lock(&g_work_lock);
+     g_work_time = 0;
+     pthread_mutex_unlock(&g_work_lock);
+     restart_threads();
+     if (!stratum_connect(&stratum, stratum.url)
+         || !stratum_subscribe(&stratum)
+         || !stratum_authorize(&stratum, rpc_user, rpc_pass))
+     {
+         stratum_disconnect(&stratum);
+         if (opt_retries >= 0 && ++failures > opt_retries)
+         {
+              applog(LOG_ERR, "...terminating workio thread");
+              tq_push(thr_info[work_thr_id].q, NULL);
+              goto out;
+         }
+         if (!opt_benchmark)
+            applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+            sleep(opt_fail_pause);
+     }
 
-	   if (jsonrpc_2)
-           {
-		work_free(&g_work);
-		work_copy(&g_work, &stratum.work);
-	   }
-	}
+     if (jsonrpc_2)
+     {
+	work_free(&g_work);
+	work_copy(&g_work, &stratum.work);
+     }
+  }
 
-        if (stratum.job.job_id &&
-             (!g_work_time || strcmp(stratum.job.job_id, g_work.job_id)) )
-	{
-	   pthread_mutex_lock(&g_work_lock);
-           algo_gate.stratum_gen_work( &stratum, &g_work );
-	   time(&g_work_time);
-	   pthread_mutex_unlock(&g_work_lock);
+  if (stratum.job.job_id &&
+         (!g_work_time || strcmp(stratum.job.job_id, g_work.job_id)) )
+  {
+      pthread_mutex_lock(&g_work_lock);
+      algo_gate.stratum_gen_work( &stratum, &g_work );
+      time(&g_work_time);
+      pthread_mutex_unlock(&g_work_lock);
+      restart_threads();
 
-           if (stratum.job.clean || jsonrpc_2)
-           {
-		static uint32_t last_bloc_height;
-		if (!opt_quiet && last_bloc_height != stratum.bloc_height)
-                {
-	           last_bloc_height = stratum.bloc_height;
-		   if (net_diff > 0.)
-		 	applog(LOG_BLUE, "%s block %d, diff %.3f",
-                           algo_names[opt_algo], stratum.bloc_height, net_diff);
-		   else
-			applog(LOG_BLUE, "%s %s block %d", short_url,
-                           algo_names[opt_algo], stratum.bloc_height);
-		}
-		restart_threads();
-	   }
-           else if (opt_debug && !opt_quiet)
-           {
+      if (stratum.job.clean || jsonrpc_2)
+      {
+         static uint32_t last_bloc_height;
+         if ( last_bloc_height != stratum.bloc_height )
+         {
+            last_bloc_height = stratum.bloc_height;
+            if ( !opt_quiet )
+            {
+               if (net_diff > 0.)
+	           applog(LOG_BLUE, "%s block %d, diff %.3f",
+                       algo_names[opt_algo], stratum.bloc_height, net_diff);
+	       else
+	           applog(LOG_BLUE, "%s %s block %d", short_url,
+                       algo_names[opt_algo], stratum.bloc_height);
+	    }
+	 }
+         restart_threads();
+       }
+       else if (opt_debug && !opt_quiet)
+       {
 		applog(LOG_BLUE, "%s asks job %d for block %d", short_url,
 		strtoul(stratum.job.job_id, NULL, 16), stratum.bloc_height);
-     	   }
-	}
+       }
+   }
 
-	if (!stratum_socket_full(&stratum, opt_timeout)) {
-		applog(LOG_ERR, "Stratum connection timeout");
-		s = NULL;
-	} else
-		s = stratum_recv_line(&stratum);
-	if (!s) {
-		stratum_disconnect(&stratum);
-		applog(LOG_ERR, "Stratum connection interrupted");
-		continue;
-	}
-	if (!stratum_handle_method(&stratum, s))
-		stratum_handle_response(s);
-	free(s);
+   if ( !stratum_socket_full( &stratum, opt_timeout ) )
+   {
+	applog(LOG_ERR, "Stratum connection timeout");
+	s = NULL;
+   }
+   else
+	s = stratum_recv_line(&stratum);
+   if ( !s )
+   {
+	stratum_disconnect(&stratum);
+	applog(LOG_ERR, "Stratum connection interrupted");
+	continue;
+   }
+   if (!stratum_handle_method(&stratum, s))
+	stratum_handle_response(s);
+   free(s);
    }
 out:
 	return NULL;
@@ -2366,18 +2386,21 @@ void parse_arg(int key, char *arg )
 	case 'c': {
 		json_error_t err;
 		json_t *config;
-		if (arg && strstr(arg, "://")) {
+                
+		if (arg && strstr(arg, "://"))
 			config = json_load_url(arg, &err);
-		} else {
+                else
 			config = JSON_LOADF(arg, &err);
-		}
-		if (!json_is_object(config)) {
+		if (!json_is_object(config))
+                {
 			if (err.line < 0)
 				fprintf(stderr, "%s\n", err.text);
 			else
 				fprintf(stderr, "%s:%d: %s\n",
 					arg, err.line, err.text);
-		} else {
+		}
+                else
+                {
 			parse_config(config, arg);
 			json_decref(config);
 		}
@@ -2673,24 +2696,26 @@ void parse_config(json_t *config, char *ref)
 
 static void parse_cmdline(int argc, char *argv[])
 {
-	int key;
+   int key;
 
-	while (1) {
+   while (1)
+   {
 #if HAVE_GETOPT_LONG
-		key = getopt_long(argc, argv, short_options, options, NULL);
+	key = getopt_long(argc, argv, short_options, options, NULL);
 #else
-		key = getopt(argc, argv, short_options);
+	key = getopt(argc, argv, short_options);
 #endif
-		if (key < 0)
-			break;
+	if (key < 0)
+		break;
 
-		parse_arg(key, optarg);
-	}
-	if (optind < argc) {
-		fprintf(stderr, "%s: unsupported non-option argument -- '%s'\n",
-			argv[0], argv[optind]);
-		show_usage_and_exit(1);
-	}
+	parse_arg(key, optarg);
+   }
+   if (optind < argc)
+   {
+	fprintf(stderr, "%s: unsupported non-option argument -- '%s'\n",
+		argv[0], argv[optind]);
+        show_usage_and_exit(1);
+   }
 }
 
 #ifndef WIN32
@@ -2887,16 +2912,29 @@ int main(int argc, char *argv[])
         if (!opt_n_threads)
                 opt_n_threads = num_cpus;
 
+/*
         // All options must be set before starting the gate
         if ( !register_algo_gate( opt_algo, &algo_gate ) )
         {
            exit(1);
         }
+
         if ( !check_cpu_capability() )
            exit(1);
-
+*/
+        if ( opt_algo == ALGO_NULL )
+        {
+            fprintf(stderr, "%s: no algo supplied\n", argv[0]);
+            show_usage_and_exit(1);
+        }
 	if ( !opt_benchmark )
         {
+            if ( !short_url )
+            {
+               fprintf(stderr, "%s: no URL supplied\n", argv[0]);
+               show_usage_and_exit(1);
+            }
+/*
             if ( !rpc_url )
             {
 		// try default config file in binary folder
@@ -2915,6 +2953,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s: no URL supplied\n", argv[0]);
 		show_usage_and_exit(1);
             }
+*/
 	}
 
 	if (!rpc_userpass)
@@ -2925,6 +2964,13 @@ int main(int argc, char *argv[])
                 else
                    return 1;
 	}
+
+        // All options must be set before starting the gate
+        if ( !register_algo_gate( opt_algo, &algo_gate ) )
+           exit(1);
+
+        if ( !check_cpu_capability() )
+           exit(1);
 
 	pthread_mutex_init(&stats_lock, NULL);
 	pthread_mutex_init(&g_work_lock, NULL);
@@ -3025,6 +3071,10 @@ int main(int argc, char *argv[])
 	thr->q = tq_new();
 	if (!thr->q)
 		return 1;
+
+       if ( rpc_pass && rpc_user )
+          opt_stratum_stats = ( strstr( rpc_pass, "stats" ) != NULL )
+                           || ( strcmp( rpc_user, "benchmark" ) == 0 );
 
 	/* start work I/O thread */
 	if (thread_create(thr, workio_thread))

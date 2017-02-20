@@ -18,6 +18,7 @@ typedef struct {
 } veltor_ctx_holder;
 
 veltor_ctx_holder veltor_ctx;
+static __thread sph_skein512_context veltor_skein_mid;
 
 void init_veltor_ctx()
 {
@@ -27,32 +28,34 @@ void init_veltor_ctx()
      sph_shabal512_init( &veltor_ctx.shabal);
 }
 
+void veltor_skein512_midstate( const void* input )
+{
+    memcpy( &veltor_skein_mid, &veltor_ctx.skein, sizeof veltor_skein_mid );
+    sph_skein512( &veltor_skein_mid, input, 64 );
+}
+
 void veltorhash(void *output, const void *input)
 {
-//	sph_skein512_context	ctx_skein;
-//	sph_gost512_context 	ctx_gost;
-//	sph_shabal512_context ctx_shabal;
-//	sph_shavite512_context     ctx_shavite;
-
-	//these uint512 in the c++ source of the client are backed by an array of uint32
 	uint32_t _ALIGN(64) hashA[16], hashB[16];
 
      veltor_ctx_holder ctx;
      memcpy( &ctx, &veltor_ctx, sizeof(veltor_ctx) );
 
-//	sph_skein512_init(&ctx_skein);
-	sph_skein512(&ctx.skein, input, 80);
+        const int midlen = 64;            // bytes
+        const int tail   = 80 - midlen;   // 16
+
+        memcpy( &ctx.skein, &veltor_skein_mid, sizeof veltor_skein_mid );
+        sph_skein512( &ctx.skein, input + midlen, tail );
+
+//	sph_skein512(&ctx.skein, input, 80);
 	sph_skein512_close(&ctx.skein, hashA);
 
-//        sph_shavite512_init(&ctx_shavite);
         sph_shavite512(&ctx.shavite, hashA, 64);
         sph_shavite512_close(&ctx.shavite, hashB);
 
-//        sph_shabal512_init(&ctx_shabal);
         sph_shabal512(&ctx.shabal, hashB, 64);
         sph_shabal512_close(&ctx.shabal, hashA);
 
-//	sph_gost512_init(&ctx_gost);
 	sph_gost512(&ctx.gost, hashA, 64);
 	sph_gost512_close(&ctx.gost, hashB);
 
@@ -78,6 +81,9 @@ int scanhash_veltor(int thr_id, struct work *work, uint32_t max_nonce, uint64_t 
 	for (int i=0; i < 19; i++) {
 		be32enc(&endiandata[i], pdata[i]);
 	}
+
+        veltor_skein512_midstate( endiandata );
+
 	do {
 		be32enc(&endiandata[19], nonce);
 		veltorhash(hash, endiandata);
@@ -105,5 +111,6 @@ bool register_veltor_algo( algo_gate_t* gate )
     gate->hash      = (void*)&veltorhash;
     gate->hash_alt  = (void*)&veltorhash;
     gate->get_max64 = (void*)&get_max64_0x3ffff;
+    return true;
 }
 

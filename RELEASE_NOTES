@@ -1,5 +1,60 @@
+Compile instruction for Linux and Windows are at the bottom of this file.
+
 Change Log
 ----------
+v3.5.8
+
+Lyra2RE fixed on Windows, broken in v3.5.6.
+Ported AES cryptonight optimizations from v3.5.7 to non-AES version
+  with little improvement.
+Marginal improvements to xevan and veltor.
+
+v3.5.7
+
+Cryptonight 5% faster
+
+v3.5.6
+
+Updated Lyra2z algo for new zcoin algo post block 2050.
+Cleaned up Lyra2 code and increased performance
+  - Lyra2Z (zcoin) +12%
+  - Lyra2REv2 +11%
+  - Lyra2RE +6%
+Fixed x11evo algo performance on Windows.
+Timetravel algo 3% to 5% faster
+Whirlpool algo 15% faster.
+Removed aclocal.m4 from .gitignore.
+
+v3.5.5
+
+x11evo fixed on Windows but at reduced performance.
+Changed benchmark stats collection default to false and
+  added proper user and password checks to enable it.
+
+v3.5.4
+
+x11evo fixed (broken in v3.5.2) and optimized 23% faster
+Small improvements of 1% to 3% on many algos including timetravel,
+   xevan and cryptonight.
+More code cleanup and compiler warning reduction.
+Improved checking for missing command line arguments.
+
+v3.5.3
+
+More optimizations
+  Timetravel +16%
+  Xevan       +3%
+  Qubit      +12%
+
+V3.5.2
+
+Timetravel (machinecoin) added and optimized.
+
+v3.5.1
+
+Bastion 9% faster with AES, benchkmark still not working.
+Worked around git automatically removing m4 directory.
+Fixed occasional compile error in algo-gate.h.
 
 v3.5.0
 
@@ -114,8 +169,6 @@ Building on linux prerequisites:
 It is assumed users know how to install packages on their system and
 be able to compile standard source packages. This is basic Linux and
 beyond the scope of cpuminer-opt. 
-
-
 
 Make sure you have the basic development packages installed.
 Here is a good start:

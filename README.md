@@ -7,7 +7,7 @@ Jeff garzik, ig0tik3d, elmad, palmd, and Optiminer, with additional
 optimizations by Jay D Dee.
 
 All of the code is believed to be open and free. If anyone has a
-claim to any of it post your case in the icpuminer-opt Bitcoin Talk forum
+claim to any of it post your case in the cpuminer-opt Bitcoin Talk forum
 or by email.
 
 https://bitcointalk.org/index.php?topic=1326803.0
@@ -58,6 +58,7 @@ Supported Algorithms
                           shavite3     Shavite3
                           skein        Skein+Sha (Skeincoin)
                           skein2       Double Skein (Woodcoin)
+                          timetravel   Machinecoin (MAC)
                           vanilla      blake256r8vnl (VCash)
                           veltor
                           whirlpool
@@ -87,16 +88,17 @@ performance.
 
 2. 64 bit Linux OS. Ubuntu and Fedora based distributions, including Mint and
 Centos are known to work and have all dependencies in their repositories.
-Others may work but may require more effort. 64 bit Windows OS is now supported
-with mingw_w64 and msys.
+Others may work but may require more effort.
+64 bit Windows OS is supported with mingw_w64 and msys or pre-built binaries.
 
-3. Stratum pool, cpuminer-opt only supports stratum minning.
+3. Stratum pool, cpuminer-opt only supports stratum minning. Some algos
+may work wallet mining but there are no guarantees.
 
 Errata
 ------
 
 cpuminer-opt does not work mining Decred algo at Nicehash and produces
-only "invalid extranonce2 size" rejects. It works at Zpool.
+only "invalid extranonce2 size" rejects.
 
 Benchmark testing does not work for x11evo.
 
