@@ -19,6 +19,12 @@
  "/sys/class/hwmon/hwmon1/temp1_input"
 #define HWMON_ALT2 \
  "/sys/class/hwmon/hwmon0/temp1_input"
+#define HWMON_ALT3 \
+ "/sys/devices/platform/coretemp.0/hwmon/hwmon0/temp2_input"
+#define HWMON_ALT4 \
+ "/sys/class/hwmon/hwmon0/temp2_input"
+#define HWMON_ALT5 \
+"/sys/class/hwmon/hwmon0/device/temp1_input"
 
 static float linux_cputemp(int core)
 {
@@ -31,6 +37,15 @@ static float linux_cputemp(int core)
 
 	if (!fd)
 		fd = fopen(HWMON_ALT2, "r");
+
+	if (!fd)
+		fd = fopen(HWMON_ALT3, "r");
+
+	if (!fd)
+		fd = fopen(HWMON_ALT4, "r");
+
+	if (!fd)
+                fd = fopen(HWMON_ALT5, "r");
 
 	if (!fd)
 		return tc;
@@ -182,7 +197,7 @@ void cpu_getmodelid(char *outbuf, size_t maxsz)
    getenv("PROCESSOR_REVISION"), getenv("NUMBER_OF_PROCESSORS"));
 #else
    FILE *fd = fopen("/proc/cpuinfo", "rb");
-   char *buf = NULL, *p, *eol;
+   char *buf = NULL, *p;
    int cpufam = 0, model = 0, stepping = 0;
    size_t size = 0;
    if (!fd) return;
@@ -247,22 +262,38 @@ void cpu_getmodelid(char *outbuf, size_t maxsz)
 #define ECX_Reg  (2)
 #define EDX_Reg  (3)
 
-#define XSAVE_Flag    (1 << 26) // ECX
-#define OSXSAVE_Flag  (1 << 27)
-#define AVX1_Flag     (1 << 28)
-#define XOP_Flag      (1 << 11)
-#define FMA3_Flag     (1 << 12)
-#define AES_Flag      (1 << 25)
-#define SSE42_Flag    (1 << 20)
+#define XSAVE_Flag    (1<<26) // ECX
+#define OSXSAVE_Flag  (1<<27)
+#define AVX1_Flag     (1<<28)
+#define XOP_Flag      (1<<11)
+#define FMA3_Flag     (1<<12)
+#define AES_Flag      (1<<25)
+#define SSE42_Flag    (1<<20)
 
-#define SSE_Flag      (1 << 25) // EDX
-#define SSE2_Flag     (1 << 26) 
+#define SSE_Flag      (1<<25) // EDX
+#define SSE2_Flag     (1<<26) 
 
-#define AVX2_Flag     (1 << 5) // ADV EBX
+#define AVX2_Flag     (1<< 5) // ADV EBX
+#define SHA_Flag      (1<<29)
 
 // Use this to detect presence of feature
 #define AVX1_mask     (AVX1_Flag|XSAVE_Flag|OSXSAVE_Flag)
 #define FMA3_mask     (FMA3_Flag|AVX1_mask)
+
+
+static inline bool has_sha_()
+{
+#ifdef __arm__
+    return false;
+#else
+    int cpu_info[4] = { 0 };
+    cpuid( EXTENDED_FEATURES, cpu_info );
+    return cpu_info[ EBX_Reg ] & SHA_Flag;
+#endif
+}
+
+bool has_sha() { return has_sha_(); }
+
 
 static inline bool has_sse2_()
 {

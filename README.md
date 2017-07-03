@@ -23,23 +23,26 @@ Supported Algorithms
                           blakecoin    blake256r8
                           blake2s      Blake-2 S
                           bmw          BMW 256
-                          c11          Flax
+                          c11          Chaincoin
                           cryptolight  Cryptonight-light
                           cryptonight  cryptonote, Monero (XMR)
                           decred
+                          deep         Deepcoin (DCN)
+                          dmd-gr       Diamond-Groestl
                           drop         Dropcoin
                           fresh        Fresh
-                          groestl      groestl
+                          groestl      Groestl coin
                           heavy        Heavy
                           hmq1725      Espers
                           hodl         Hodlcoin
+                          jha          jackpotcoin
                           keccak       Keccak
                           lbry         LBC, LBRY Credits
                           luffa        Luffa
                           lyra2re      lyra2
-                          lyra2rev2    lyrav2
+                          lyra2rev2    lyrav2, Vertcoin
                           lyra2z       Zcoin (XZC)
-                          lyra2zoin    Zoin (ZOI)
+                          lyra2z330    Lyra2 330 rows, Zoin (ZOI)
                           m7m          Magi (XMG)
                           myr-gr       Myriad-Groestl
                           neoscrypt    NeoScrypt(128, 2, 1)
@@ -51,16 +54,18 @@ Supported Algorithms
                           scrypt       scrypt(1024, 1, 1) (default)
                           scrypt:N     scrypt(N, 1, 1)
                           scryptjane:nf
-                          sha256d      SHA-256d
+                          sha256d      Double SHA-256
+                          sha256t      Triple SHA-256, Onecoin (OC)
                           shavite3     Shavite3
                           skein        Skein+Sha (Skeincoin)
                           skein2       Double Skein (Woodcoin)
                           timetravel   Machinecoin (MAC)
+                          timetravel10 Bitcore
                           vanilla      blake256r8vnl (VCash)
                           veltor
                           whirlpool
                           whirlpoolx
-                          x11          X11
+                          x11          Dash
                           x11evo       Revolvercoin
                           x11gost      sib (SibCoin)
                           x13          X13
@@ -93,6 +98,11 @@ may work wallet mining but there are no guarantees.
 
 Errata
 ------
+
+AMD CPUs older than Piledriver, including Athlon x2 and Phenom II x4, are not
+supported by cpuminer-opt due to an incompatible implementation of SSE2 on
+these CPUs. Some algos may crash the miner with an invalid instruction.
+Users are recommended to use an unoptimized miner such as cpuminer-multi.
 
 cpuminer-opt does not work mining Decred algo at Nicehash and produces
 only "invalid extranonce2 size" rejects.

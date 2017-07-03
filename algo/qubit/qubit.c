@@ -35,6 +35,7 @@ typedef struct
 } qubit_ctx_holder;
 
 qubit_ctx_holder qubit_ctx;
+static __thread hashState_luffa qubit_luffa_mid;
 
 void init_qubit_ctx()
 {
@@ -49,77 +50,52 @@ void init_qubit_ctx()
 #endif
 };
 
+void qubit_luffa_midstate( const void* input )
+{
+    memcpy( &qubit_luffa_mid, &qubit_ctx.luffa, sizeof qubit_luffa_mid );
+    update_luffa( &qubit_luffa_mid, input, 64 );
+}
+
 void qubithash(void *output, const void *input)
 {
-        unsigned char hash[128]; // uint32_t hashA[16], hashB[16];
+        unsigned char hash[128] __attribute((aligned(64)));
         #define hashB hash+64
 
         qubit_ctx_holder ctx;
         memcpy( &ctx, &qubit_ctx, sizeof(qubit_ctx) );
 
-        update_luffa( &ctx.luffa, (const BitSequence*)input, 80 );
-        final_luffa( &ctx.luffa, (BitSequence*)hash);
+        const int midlen = 64;            // bytes
+        const int tail   = 80 - midlen;   // 16
+        memcpy( &ctx.luffa, &qubit_luffa_mid, sizeof qubit_luffa_mid );
+        update_and_final_luffa( &ctx.luffa, (BitSequence*)hash,
+                                (const BitSequence*)input + midlen, tail );
 
-        cubehashUpdate( &ctx.cubehash, (const byte*) hash,64);
-        cubehashDigest( &ctx.cubehash, (byte*)hash);
+        cubehashUpdateDigest( &ctx.cubehash, (byte*)hash,
+                              (const byte*) hash, 64 );
 
         sph_shavite512( &ctx.shavite, hash, 64);
         sph_shavite512_close( &ctx.shavite, hash);
 
-        update_sd( &ctx.simd, (const BitSequence *)hash,512);
-        final_sd( &ctx.simd, (BitSequence *)hash);
+        update_final_sd( &ctx.simd, (BitSequence *)hash,
+                         (const BitSequence*)hash,  512 );
 
 #ifdef NO_AES_NI
         sph_echo512 (&ctx.echo, (const void*) hash, 64);
         sph_echo512_close(&ctx.echo, (void*) hash);
 #else
-        update_echo ( &ctx.echo, (const BitSequence *) hash, 512);
-        final_echo( &ctx.echo, (BitSequence *) hash);
+        update_final_echo( &ctx.echo, (BitSequence *) hash,
+                     (const BitSequence *) hash, 512 );
 #endif
 
         asm volatile ("emms");
         memcpy(output, hash, 32);
 }
 
-void qubithash_alt(void *output, const void *input)
-{
-        sph_luffa512_context ctx_luffa;
-        sph_cubehash512_context ctx_cubehash;
-        sph_shavite512_context ctx_shavite;
-        sph_simd512_context ctx_simd;
-        sph_echo512_context ctx_echo;
-
-        uint8_t hash[64];
-
-        sph_luffa512_init(&ctx_luffa);
-        sph_luffa512 (&ctx_luffa, input, 80);
-        sph_luffa512_close(&ctx_luffa, (void*) hash);
-
-        sph_cubehash512_init(&ctx_cubehash);
-        sph_cubehash512 (&ctx_cubehash, (const void*) hash, 64);
-        sph_cubehash512_close(&ctx_cubehash, (void*) hash);
-
-        sph_shavite512_init(&ctx_shavite);
-        sph_shavite512 (&ctx_shavite, (const void*) hash, 64);
-        sph_shavite512_close(&ctx_shavite, (void*) hash);
-
-        sph_simd512_init(&ctx_simd);
-        sph_simd512 (&ctx_simd, (const void*) hash, 64);
-        sph_simd512_close(&ctx_simd, (void*) hash);
-
-        sph_echo512_init(&ctx_echo);
-        sph_echo512 (&ctx_echo, (const void*) hash, 64);
-        sph_echo512_close(&ctx_echo, (void*) hash);
-
-        memcpy(output, hash, 32);
-}
-
-
 int scanhash_qubit(int thr_id, struct work *work,
 		uint32_t max_nonce, uint64_t *hashes_done)
 {
         uint32_t endiandata[20] __attribute__((aligned(64)));
-        uint32_t hash64[8] __attribute__((aligned(32)));
+        uint32_t hash64[8] __attribute__((aligned(64)));
         uint32_t *pdata = work->data;
         uint32_t *ptarget = work->target;
 	uint32_t n = pdata[19] - 1;
@@ -132,6 +108,8 @@ int scanhash_qubit(int thr_id, struct work *work,
 
 	// we need bigendian data...
         swab32_array( endiandata, pdata, 20 );
+
+        qubit_luffa_midstate( endiandata );
 
 #ifdef DEBUG_ALGO
 	printf("[%d] Htarg=%X\n", thr_id, Htarg);
@@ -186,7 +164,6 @@ bool register_qubit_algo( algo_gate_t* gate )
   init_qubit_ctx();
   gate->scanhash = (void*)&scanhash_qubit;
   gate->hash     = (void*)&qubithash;
-  gate->hash_alt = (void*)&qubithash_alt;
   return true;
 };
 

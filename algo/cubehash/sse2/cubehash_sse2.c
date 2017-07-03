@@ -9,11 +9,7 @@
 #include <immintrin.h>
 #endif
 #include "cubehash_sse2.h"
-#include "algo/sha3/sha3-defs.h"
-
-//enum { SUCCESS = 0, FAIL = 1, BAD_HASHBITLEN = 2 };
-
-//#if defined(OPTIMIZE_SSE2)
+#include "algo/sha/sha3-defs.h"
 
 static void transform( cubehashParam *sp )
 {
@@ -24,10 +20,10 @@ static void transform( cubehashParam *sp )
 
     __m256i x0, x1, x2, x3, y0, y1;
 
-    x0 = _mm256_load_si256( 0 + sp->x );
-    x1 = _mm256_load_si256( 2 + sp->x );   
-    x2 = _mm256_load_si256( 4 + sp->x );
-    x3 = _mm256_load_si256( 6 + sp->x );
+    x0 = _mm256_load_si256( (__m256i*)sp->x     );
+    x1 = _mm256_load_si256( (__m256i*)sp->x + 1 );   
+    x2 = _mm256_load_si256( (__m256i*)sp->x + 2 );
+    x3 = _mm256_load_si256( (__m256i*)sp->x + 3 );
 
     for ( r = 0; r < rounds; ++r )
     { 
@@ -57,22 +53,22 @@ static void transform( cubehashParam *sp )
         x3 = _mm256_shuffle_epi32( x3, 0xb1 );
     }
 
-    _mm256_store_si256( 0 + sp->x, x0 );
-    _mm256_store_si256( 2 + sp->x, x1 );
-    _mm256_store_si256( 4 + sp->x, x2 );
-    _mm256_store_si256( 6 + sp->x, x3 );
+    _mm256_store_si256( (__m256i*)sp->x,     x0 );
+    _mm256_store_si256( (__m256i*)sp->x + 1, x1 );
+    _mm256_store_si256( (__m256i*)sp->x + 2, x2 );
+    _mm256_store_si256( (__m256i*)sp->x + 3, x3 );
 
 #else
     __m128i x0, x1, x2, x3, x4, x5, x6, x7, y0, y1, y2, y3;
 
-    x0 = _mm_load_si128(0 + sp->x);
-    x1 = _mm_load_si128(1 + sp->x);
-    x2 = _mm_load_si128(2 + sp->x);
-    x3 = _mm_load_si128(3 + sp->x);
-    x4 = _mm_load_si128(4 + sp->x);
-    x5 = _mm_load_si128(5 + sp->x);
-    x6 = _mm_load_si128(6 + sp->x);
-    x7 = _mm_load_si128(7 + sp->x);
+    x0 = _mm_load_si128( (__m128i*)sp->x     );
+    x1 = _mm_load_si128( (__m128i*)sp->x + 1 );
+    x2 = _mm_load_si128( (__m128i*)sp->x + 2 );
+    x3 = _mm_load_si128( (__m128i*)sp->x + 3 );
+    x4 = _mm_load_si128( (__m128i*)sp->x + 4 );
+    x5 = _mm_load_si128( (__m128i*)sp->x + 5 );
+    x6 = _mm_load_si128( (__m128i*)sp->x + 6 );
+    x7 = _mm_load_si128( (__m128i*)sp->x + 7 );
 
     for (r = 0; r < rounds; ++r) {
 	x4 = _mm_add_epi32(x0, x4);
@@ -117,14 +113,14 @@ static void transform( cubehashParam *sp )
 	x7 = _mm_shuffle_epi32(x7, 0xb1);
     }
 
-    _mm_store_si128(0 + sp->x, x0);
-    _mm_store_si128(1 + sp->x, x1);
-    _mm_store_si128(2 + sp->x, x2);
-    _mm_store_si128(3 + sp->x, x3);
-    _mm_store_si128(4 + sp->x, x4);
-    _mm_store_si128(5 + sp->x, x5);
-    _mm_store_si128(6 + sp->x, x6);
-    _mm_store_si128(7 + sp->x, x7);
+    _mm_store_si128( (__m128i*)sp->x,     x0 );
+    _mm_store_si128( (__m128i*)sp->x + 1, x1 );
+    _mm_store_si128( (__m128i*)sp->x + 2, x2 );
+    _mm_store_si128( (__m128i*)sp->x + 3, x3 );
+    _mm_store_si128( (__m128i*)sp->x + 4, x4 );
+    _mm_store_si128( (__m128i*)sp->x + 5, x5 );
+    _mm_store_si128( (__m128i*)sp->x + 6, x6 );
+    _mm_store_si128( (__m128i*)sp->x + 7, x7 );
 
 #endif
 }  // transform
@@ -143,72 +139,71 @@ int cubehashInit(cubehashParam *sp, int hashbitlen, int rounds, int blockbytes)
     if ( blockbytes <= 0 || blockbytes >= 256)
          blockbytes = CUBEHASH_BLOCKBYTES;
 
-    sp->hashbitlen = hashbitlen;
-    sp->rounds = rounds;
-    sp->blockbytes = blockbytes;
+    // all sizes of __m128i
+    sp->hashlen   = hashbitlen/128;
+    sp->blocksize = blockbytes/16;
+    sp->rounds    = rounds;
+    sp->pos       = 0;
+
     for ( i = 0; i < 8; ++i )
          sp->x[i] = _mm_set_epi32(0, 0, 0, 0);
-    sp->x[0] = _mm_set_epi32(0, sp->rounds, sp->blockbytes, hashbitlen / 8);
+
+    sp->x[0] = _mm_set_epi32( 0, rounds, blockbytes, hashbitlen / 8 );
+
     for ( i = 0; i < 10; ++i )
          transform(sp);
-    sp->pos = 0;
+//    sp->pos = 0;
     return SUCCESS;
-}
-
-int
-cubehashReset(cubehashParam *sp)
-{
-    return cubehashInit(sp, sp->hashbitlen, sp->rounds, sp->blockbytes);
 }
 
 int cubehashUpdate( cubehashParam *sp, const byte *data, size_t size )
 {
-    uint64_t databitlen = 8 * size;
+    const int len = size / 16;
+    const __m128i* in = (__m128i*)data;
+    int i;
 
-    /* caller promises us that previous data had integral number of bytes */
-    /* so sp->pos is a multiple of 8 */
+    // It is assumed data is aligned to 256 bits and is a multiple of 128 bits.
+    // Current usage sata is either 64 or 80 bytes.
 
-    while ( databitlen >= 8 )
+    for ( i = 0; i < len; i++ )
     {
-	( (unsigned char *)sp->x )[sp->pos/8] ^= *data;
-	data += 1;
-	databitlen -= 8;
-	sp->pos += 8;
-	if ( sp->pos == 8 * sp->blockbytes )
+        sp->x[ sp->pos ] = _mm_xor_si128( sp->x[ sp->pos ], in[i] );
+        sp->pos++;
+        if ( sp->pos == sp->blocksize )
         {
-	    transform( sp );
-	    sp->pos = 0;
-	}
+           transform( sp );
+           sp->pos = 0;
+        }
     }
-    if ( databitlen > 0 )
-    {
-	( (unsigned char *)sp->x )[sp->pos/8] ^= *data;
-	sp->pos += databitlen;
-    }
+
     return SUCCESS;
 }
 
 int cubehashDigest( cubehashParam *sp, byte *digest )
 {
+    __m128i* hash = (__m128i*)digest;
     int i;
 
-    ( (unsigned char *)sp->x )[sp->pos/8] ^= ( 128 >> (sp->pos % 8) );
-    transform(sp);
+    // pos is zero for 64 byte data, 1 for 80 byte data.
+    sp->x[ sp->pos ] = _mm_xor_si128( sp->x[ sp->pos ],
+                                      _mm_set_epi8( 0,0,0,0, 0,0,0,0,
+                                                    0,0,0,0, 0,0,0,0x80 ) );
+    transform( sp );
 
-    sp->x[7] = _mm_xor_si128(sp->x[7], _mm_set_epi32(1, 0, 0, 0));
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
+    sp->x[7] = _mm_xor_si128( sp->x[7], _mm_set_epi32( 1,0,0,0 ) );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
 
-    for ( i = 0; i < sp->hashbitlen / 8; ++i )
-	digest[i] = ((unsigned char *) sp->x)[i];
+    for ( i = 0; i < sp->hashlen; i++ )
+       hash[i] = sp->x[i];
 
     return SUCCESS;
 }
@@ -216,48 +211,45 @@ int cubehashDigest( cubehashParam *sp, byte *digest )
 int cubehashUpdateDigest( cubehashParam *sp, byte *digest,
                           const byte *data, size_t size )
 {
-    uint64_t databitlen = 8 * size;
-    int hashlen128 = sp->hashbitlen/128;
+    const int len = size / 16;
+    const __m128i* in = (__m128i*)data;
+    __m128i* hash = (__m128i*)digest;
     int i;
 
-    /* caller promises us that previous data had integral number of bytes */
-    /* so sp->pos is a multiple of 8 */
+    // It is assumed data is aligned to 256 bits and is a multiple of 128 bits.
+    // Current usage sata is either 64 or 80 bytes.
 
-    while ( databitlen >= 8 )
+    for ( i = 0; i < len; i++ )
     {
-        ( (unsigned char *)sp->x )[sp->pos/8] ^= *data;
-        data += 1;
-        databitlen -= 8;
-        sp->pos += 8;
-        if ( sp->pos == 8 * sp->blockbytes )
+        sp->x[ sp->pos ] = _mm_xor_si128( sp->x[ sp->pos ], in[i] );
+        sp->pos++;
+        if ( sp->pos == sp->blocksize )
         {
-            transform(sp);
-            sp->pos = 0;
+           transform( sp );
+           sp->pos = 0;
         }
     }
-    if ( databitlen > 0 )
-    {
-        ( (unsigned char *)sp->x )[sp->pos/8] ^= *data;
-        sp->pos += databitlen;
-    }
 
-    ( (unsigned char *)sp->x )[sp->pos/8] ^= ( 128 >> (sp->pos % 8) );
+    // pos is zero for 64 byte data, 1 for 80 byte data.
+    sp->x[ sp->pos ] = _mm_xor_si128( sp->x[ sp->pos ],
+                                      _mm_set_epi8( 0,0,0,0, 0,0,0,0,
+                                                    0,0,0,0, 0,0,0,0x80 ) );
     transform( sp );
 
-    sp->x[7] = _mm_xor_si128( sp->x[7], _mm_set_epi32(1,0,0,0) );
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
-    transform(sp);
+    sp->x[7] = _mm_xor_si128( sp->x[7], _mm_set_epi32( 1,0,0,0 ) );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
+    transform( sp );
 
-    for ( i = 0; i < hashlen128; i++ )
-       ( (__m128i*)digest )[i] = ( (__m128i*)sp->x )[i];
+    for ( i = 0; i < sp->hashlen; i++ )
+       hash[i] = sp->x[i];
 
     return SUCCESS;
 }
