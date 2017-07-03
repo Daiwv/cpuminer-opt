@@ -14,3 +14,4 @@ find . -name '*.wtf' -print0 | xargs -0 rm -rvf
 find . -name '*.broke' -print0 | xargs -0 rm -rvf
 find . -name '*.log' -print0 | xargs -0 rm -rvf
 find . -name .dirstamp -print0 | xargs -0 rm -rvf
+find . -name configure -print0 | xargs -0 rm -rvf

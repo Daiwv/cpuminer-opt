@@ -21,7 +21,7 @@ void blakehash(void *state, const void *input)
 {
 	sph_blake256_context ctx;
 
-	uint8_t hash[64];
+	uint8_t hash[64] __attribute__ ((aligned (32)));
 	uint8_t *ending = (uint8_t*) input;
 	ending += 64;
 
@@ -100,7 +100,6 @@ bool register_blake_algo( algo_gate_t* gate )
 {
   gate->scanhash  = (void*)&scanhash_blake;
   gate->hash      = (void*)&blakehash;
-  gate->hash_alt  = (void*)&blakehash;
   gate->get_max64 = (void*)&blake_get_max64;
   return true;
 }

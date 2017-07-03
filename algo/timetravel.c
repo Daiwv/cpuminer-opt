@@ -99,8 +99,8 @@ typedef struct {
 #endif
 } tt_ctx_holder;
 
-tt_ctx_holder tt_ctx;
-__thread tt_ctx_holder tt_mid;
+tt_ctx_holder tt_ctx __attribute__ ((aligned (64)));
+__thread tt_ctx_holder tt_mid __attribute__ ((aligned (64)));
 
 void init_tt_ctx()
 {
@@ -120,15 +120,16 @@ void init_tt_ctx()
 
 void timetravel_hash(void *output, const void *input)
 {
-   uint32_t _ALIGN(64) hash[128]; // 16 bytes * HASH_FUNC_COUNT
+   uint32_t hash[128] __attribute__ ((aligned (64)));
    uint32_t *hashA, *hashB;
+   tt_ctx_holder ctx __attribute__ ((aligned (64)));
    uint32_t dataLen = 64;
    uint32_t *work_data = (uint32_t *)input;
-   tt_ctx_holder ctx;
-   memcpy( &ctx, &tt_ctx, sizeof(tt_ctx) );
    int i;
    const int midlen = 64;            // bytes
    const int tail   = 80 - midlen;   // 16
+
+   memcpy( &ctx, &tt_ctx, sizeof(tt_ctx) );
 
    for ( i = 0; i < HASH_FUNC_COUNT; i++ )
    {
@@ -147,17 +148,17 @@ void timetravel_hash(void *output, const void *input)
     switch ( permutation[i] )
     {
       case 0:
-//        if ( i == 0 )
-//        {
-//           memcpy( &ctx.blake, &tt_mid.blake, sizeof tt_mid.blake );
-//           sph_blake256( &ctx.blake, input + midlen, tail );
-//           sph_blake256_close( &ctx.blake, hashB );
-//        }
-//        else
-//        {
-          sph_blake512( &ctx.blake, hashA, dataLen );
-          sph_blake512_close( &ctx.blake, hashB );
-//        }
+        if ( i == 0 )
+        {
+           memcpy( &ctx.blake, &tt_mid.blake, sizeof tt_mid.blake );
+           sph_blake512( &ctx.blake, input + midlen, tail );
+           sph_blake512_close( &ctx.blake, hashB );
+        }
+        else
+        {
+           sph_blake512( &ctx.blake, hashA, dataLen );
+           sph_blake512_close( &ctx.blake, hashB );
+        }
         break;
      case 1:
         if ( i == 0 )
@@ -186,17 +187,18 @@ void timetravel_hash(void *output, const void *input)
            sph_groestl512_close( &ctx.groestl, hashB );
         }
 #else
-        if ( i == 0 )
-        {
-           memcpy( &ctx.groestl, &tt_mid.groestl, sizeof tt_mid.groestl );
-           update_and_final_groestl( &ctx.groestl, (char*)hashB,
-                                    (char*)input + midlen, tail*8 );
-        }
-        else
-        {
+// groestl midstate is slower
+//        if ( i == 0 )
+//        {
+//           memcpy( &ctx.groestl, &tt_mid.groestl, sizeof tt_mid.groestl );
+//           update_and_final_groestl( &ctx.groestl, (char*)hashB,
+//                                    (char*)input + midlen, tail*8 );
+//        }
+//        else
+//        {
            update_and_final_groestl( &ctx.groestl, (char*)hashB,
                                     (char*)hashA, dataLen*8 );
-        }
+//        }
 #endif
         break;
      case 3:
@@ -239,28 +241,29 @@ void timetravel_hash(void *output, const void *input)
         }
         break;
      case 6:
-//        if ( i == 0 )
-//        {
-//           memcpy( &ctx.luffa, &tt_mid.luffa, sizeof tt_mid.luffa );
-//           update_and_final_luffa( &ctx.luffa, hashB,
-//                                   input + 64, 16 );
-//        }
-//        else
-//        {
+        if ( i == 0 )
+        {
+           memcpy( &ctx.luffa, &tt_mid.luffa, sizeof tt_mid.luffa );
            update_and_final_luffa( &ctx.luffa, (BitSequence*)hashB,
-                                   hashA, dataLen );
-//        }
+                                   (const BitSequence *)input + 64, 16 );
+        }
+        else
+        {
+           update_and_final_luffa( &ctx.luffa, (BitSequence*)hashB,
+                                   (const BitSequence *)hashA, dataLen );
+        }
         break;
      case 7:
         if ( i == 0 )
         {
            memcpy( &ctx.cube, &tt_mid.cube, sizeof tt_mid.cube );
-           cubehashUpdateDigest( &ctx.cube, hashB,
-                                 input + midlen, tail );
+           cubehashUpdateDigest( &ctx.cube, (byte*)hashB,
+                                 (const byte*)input + midlen, tail );
         }
         else
         {
-           cubehashUpdateDigest( &ctx.cube, hashB, hashA, dataLen );
+           cubehashUpdateDigest( &ctx.cube, (byte*)hashB, (const byte*)hashA,
+                                 dataLen );
         }
         break;
      default:
@@ -306,8 +309,8 @@ int scanhash_timetravel( int thr_id, struct work *work, uint32_t max_nonce,
       switch ( permutation[0] )
       {
          case 0:
-//           memcpy( &tt_mid.blake, &tt_ctx.blake, sizeof(tt_mid.blake) );
-//           sph_blake256( &tt_mid.blake, endiandata, 64 );
+           memcpy( &tt_mid.blake, &tt_ctx.blake, sizeof(tt_mid.blake) );
+           sph_blake512( &tt_mid.blake, endiandata, 64 );
            break;
         case 1:
            memcpy( &tt_mid.bmw, &tt_ctx.bmw, sizeof(tt_mid.bmw) );
@@ -318,8 +321,9 @@ int scanhash_timetravel( int thr_id, struct work *work, uint32_t max_nonce,
            memcpy( &tt_mid.groestl, &tt_ctx.groestl, sizeof(tt_mid.groestl ) );
            sph_groestl512( &tt_mid.groestl, endiandata, 64 );
 #else
-           memcpy( &tt_mid.groestl, &tt_ctx.groestl, sizeof(tt_mid.groestl ) );
-           update_groestl( &tt_mid.groestl, (char*)endiandata, 64*8 );
+// groestl midstate is slower
+//         memcpy( &tt_mid.groestl, &tt_ctx.groestl, sizeof(tt_mid.groestl ) );
+//         update_groestl( &tt_mid.groestl, (char*)endiandata, 64*8 );
 #endif
            break;
         case 3:
@@ -335,13 +339,12 @@ int scanhash_timetravel( int thr_id, struct work *work, uint32_t max_nonce,
            sph_keccak512( &tt_mid.keccak, endiandata, 64 );
            break;
         case 6:
-//           init_luffa( &tt_mid.luffa, 512 );
-//           memcpy( &tt_mid.luffa, &tt_ctx.luffa, sizeof(tt_mid.luffa ) );
-//           update_luffa( &tt_mid.luffa, endiandata, 64 );
+           memcpy( &tt_mid.luffa, &tt_ctx.luffa, sizeof(tt_mid.luffa ) );
+           update_luffa( &tt_mid.luffa, (const BitSequence*)endiandata, 64 );
            break;
         case 7:
            memcpy( &tt_mid.cube, &tt_ctx.cube, sizeof(tt_mid.cube ) );
-           cubehashUpdate( &tt_mid.cube, endiandata, 64 );
+           cubehashUpdate( &tt_mid.cube, (const byte*)endiandata, 64 );
            break;
         default:
            break;
@@ -373,23 +376,6 @@ void timetravel_set_target( struct work* work, double job_diff )
  work_set_target( work, job_diff / (256.0 * opt_diff_factor) );
 }
 
-// set_data_endian is a reasonable gate to use, it's called upon receipt
-// of new work (new ntime) and has the right arg to access it.
-void timetravel_calc_perm( struct work *work )
-{
-   // We want to permute algorithms. To get started we
-   // initialize an array with a sorted sequence of unique
-   // integers where every integer represents its own algorithm.
-   int ntime, steps, i;
-   be32enc( &ntime, work->data[ STD_NTIME_INDEX ] );
-   steps = ( ntime - HASH_FUNC_BASE_TIMESTAMP )
-                         % HASH_FUNC_COUNT_PERMUTATIONS;
-   for ( i = 0; i < HASH_FUNC_COUNT; i++ ) 
-        permutation[i] = i;
-   for ( i = 0; i < steps; i++ ) 
-        next_permutation( permutation, permutation + HASH_FUNC_COUNT );
-}
-
 bool register_timetravel_algo( algo_gate_t* gate )
 {
   gate->optimizations = SSE2_OPT | AES_OPT | AVX_OPT | AVX2_OPT;
@@ -398,7 +384,6 @@ bool register_timetravel_algo( algo_gate_t* gate )
   gate->hash       = (void*)&timetravel_hash;
   gate->set_target = (void*)&timetravel_set_target;
   gate->get_max64  = (void*)&get_max64_0xffffLL;
-//  gate->set_work_data_endian = (void*)&timetravel_calc_perm;
   return true;
 };
 

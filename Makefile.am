@@ -29,6 +29,7 @@ cpuminer_SOURCES = \
   algo/shavite/shavite.c \
   algo/echo/sph_echo.c \
   algo/blake/sph_blake.c \
+  algo/blake/sph_blake2b.c \
   algo/heavy/sph_hefty1.c \
   algo/blake/mod_blakecoin.c \
   algo/luffa/sph_luffa.c \
@@ -40,8 +41,8 @@ cpuminer_SOURCES = \
   algo/jh/sph_jh.c \
   algo/keccak/sph_keccak.c \
   algo/keccak/keccak.c\
-  algo/sha3/sph_sha2.c \
-  algo/sha3/sph_sha2big.c \
+  algo/sha/sph_sha2.c \
+  algo/sha/sph_sha2big.c \
   algo/shabal/sph_shabal.c \
   algo/whirlpool/sph_whirlpool.c\
   crypto/blake2s.c \
@@ -62,7 +63,8 @@ cpuminer_SOURCES = \
   algo/argon2/ar2/blake2b.c \
   algo/axiom.c \
   algo/blake/blake.c \
-  algo/blake/blake2.c \
+  algo/blake/blake2b.c \
+  algo/blake/blake2s.c \
   algo/blake/blakecoin.c \
   algo/blake/decred.c \
   algo/blake/pentablake.c \
@@ -83,19 +85,12 @@ cpuminer_SOURCES = \
   algo/heavy/heavy.c \
   algo/heavy/bastion.c \
   algo/hmq1725.c \
-  algo/hodl/hodl.cpp \
-  algo/hodl/hodl-gate.c \
-  algo/hodl/hodl_arith_uint256.cpp \
-  algo/hodl/hodl_uint256.cpp \
-  algo/hodl/hash.cpp \
-  algo/hodl/hmac_sha512.cpp \
-  algo/hodl/sha256.cpp \
-  algo/hodl/sha512.cpp \
-  algo/hodl/utilstrencodings.cpp \
-  algo/hodl/hodl-wolf.c \
   algo/hodl/aes.c \
+  algo/hodl/hodl-gate.c \
+  algo/hodl/hodl-wolf.c \
   algo/hodl/sha512_avx.c \
   algo/hodl/sha512_avx2.c \
+  algo/jh/jha.c \
   algo/lbry.c \
   algo/luffa/luffa.c \
   algo/luffa/sse2/luffa_for_sse2.c \
@@ -104,7 +99,7 @@ cpuminer_SOURCES = \
   algo/lyra2/lyra2rev2.c \
   algo/lyra2/lyra2re.c \
   algo/lyra2/zcoin.c \
-  algo/lyra2/zoin.c \
+  algo/lyra2/lyra2z330.c \
   algo/keccak/sse2/keccak.c \
   algo/m7m.c \
   algo/neoscrypt.c \
@@ -112,10 +107,12 @@ cpuminer_SOURCES = \
   algo/pluck.c \
   algo/quark/quark.c \
   algo/qubit/qubit.c \
+  algo/qubit/deep.c \
   algo/ripemd/sph_ripemd.c \
   algo/scrypt.c \
   algo/scryptjane/scrypt-jane.c \
-  algo/sha2/sha2.c \
+  algo/sha/sha2.c \
+  algo/sha/sha256t.c \
   algo/simd/sse2/nist.c \
   algo/simd/sse2/vector.c \
   algo/skein/skein.c \
@@ -123,6 +120,8 @@ cpuminer_SOURCES = \
   algo/s3.c \
   algo/tiger/sph_tiger.c \
   algo/timetravel.c \
+  algo/timetravel10.c \
+  algo/tribus.c \
   algo/veltor.c \
   algo/whirlpool/whirlpool.c \
   algo/whirlpool/whirlpoolx.c \

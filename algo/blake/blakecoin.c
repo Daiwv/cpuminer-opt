@@ -30,7 +30,7 @@ static void blake_midstate_init( const void* input )
 void blakecoinhash( void *state, const void *input )
 {
 	sph_blake256_context ctx;
-	uint8_t hash[64];
+	uint8_t hash[64] __attribute__ ((aligned (32)));
 	uint8_t *ending = (uint8_t*) input + 64;
 
         // copy cached midstate
@@ -93,10 +93,12 @@ int scanhash_blakecoin( int thr_id, struct work *work, uint32_t max_nonce,
 	return 0;
 }
 
+/*
 void blakecoin_gen_merkle_root ( char* merkle_root, struct stratum_ctx* sctx )
 {
  SHA256( sctx->job.coinbase, (int)sctx->job.coinbase_size, merkle_root );
 }
+*/
 
 // changed to get_max64_0x3fffffLL in cpuminer-multi-decred
 int64_t blakecoin_get_max64 ()
@@ -109,7 +111,6 @@ bool register_vanilla_algo( algo_gate_t* gate )
 {
     gate->scanhash = (void*)&scanhash_blakecoin;
     gate->hash     = (void*)&blakecoinhash;
-    gate->hash_alt = (void*)&blakecoinhash;
     gate->get_max64 = (void*)&blakecoin_get_max64;
     blakecoin_init( &blake_init_ctx );
     return true;

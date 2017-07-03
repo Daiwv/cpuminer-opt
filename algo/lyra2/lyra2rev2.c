@@ -48,10 +48,11 @@ void l2v2_blake256_midstate( const void* input )
 
 void lyra2rev2_hash( void *state, const void *input )
 {
-        lyra2v2_ctx_holder ctx;
+        lyra2v2_ctx_holder ctx __attribute__ ((aligned (64))); 
         memcpy( &ctx, &lyra2v2_ctx, sizeof(lyra2v2_ctx) );
-	uint32_t _ALIGN(128) hashA[8], hashB[8];
-
+        uint8_t hash[128] __attribute__ ((aligned (64)));
+        #define hashA hash
+        #define hashB hash+64
         const int midlen = 64;            // bytes
         const int tail   = 80 - midlen;   // 16
 
@@ -84,8 +85,8 @@ int scanhash_lyra2rev2(int thr_id, struct work *work,
 {
         uint32_t *pdata = work->data;
         uint32_t *ptarget = work->target;
-	uint32_t _ALIGN(64) endiandata[20];
-        uint32_t hash[8] __attribute__((aligned(32)));
+	uint32_t endiandata[20] __attribute__ ((aligned (64)));
+        uint32_t hash[8] __attribute__((aligned(64)));
 	const uint32_t first_nonce = pdata[19];
 	uint32_t nonce = first_nonce;
         const uint32_t Htarg = ptarget[7];
@@ -124,7 +125,6 @@ void lyra2rev2_set_target( struct work* work, double job_diff )
  work_set_target( work, job_diff / (256.0 * opt_diff_factor) );
 }
 
-
 bool lyra2rev2_thread_init()
 {
    const int64_t ROW_LEN_INT64 = BLOCK_LEN_INT64 * 4; // nCols
@@ -138,7 +138,7 @@ bool lyra2rev2_thread_init()
 
 #if defined (__AVX2__)
    memset_zero_m256i( (__m256i*)l2v2_wholeMatrix, i/32 );
-#elif defined(__AVX__)
+#elif defined (__AVX__)
    memset_zero_m128i( (__m128i*)l2v2_wholeMatrix, i/16 );
 #else
    memset( l2v2_wholeMatrix, 0, i );
@@ -151,10 +151,9 @@ bool register_lyra2rev2_algo( algo_gate_t* gate )
   init_lyra2rev2_ctx();
   gate->optimizations = SSE2_OPT | AES_OPT | AVX_OPT | AVX2_OPT;
   gate->miner_thread_init = (void*)&lyra2rev2_thread_init;
-  gate->scanhash   = (void*)&scanhash_lyra2rev2;
-  gate->hash       = (void*)&lyra2rev2_hash;
-  gate->hash_alt   = (void*)&lyra2rev2_hash;
-  gate->set_target = (void*)&lyra2rev2_set_target;
+  gate->scanhash          = (void*)&scanhash_lyra2rev2;
+  gate->hash              = (void*)&lyra2rev2_hash;
+  gate->set_target        = (void*)&lyra2rev2_set_target;
   return true;
 };
 

@@ -49,10 +49,10 @@
 
 /*
 #ifndef min
-#define min(a,b) (a>b ? b : a)
+#define min(a,b) (a>b ? (b) :(a))
 #endif
 #ifndef max 
-#define max(a,b) (a<b ? b : a)
+#define max(a,b) (a<b ? (b) : (a))
 #endif
 */
 
@@ -323,7 +323,8 @@ double hash_target_ratio( uint32_t* hash, uint32_t* target );
 void   work_set_target_ratio( struct work* work, uint32_t* hash );
 
 void   get_currentalgo( char* buf, int sz );
-bool   has_aes_ni( void );
+bool   has_sha();
+bool   has_aes_ni();
 bool   has_avx1();
 bool   has_avx2();
 bool   has_sse2();
@@ -479,25 +480,29 @@ enum algos {
         ALGO_BASTION,
         ALGO_BLAKE,       
         ALGO_BLAKECOIN,   
+//        ALGO_BLAKE2B,
         ALGO_BLAKE2S,     
         ALGO_BMW,        
         ALGO_C11,         
         ALGO_CRYPTOLIGHT, 
         ALGO_CRYPTONIGHT, 
         ALGO_DECRED,
+        ALGO_DEEP,
+        ALGO_DMD_GR,
         ALGO_DROP,        
         ALGO_FRESH,       
         ALGO_GROESTL,     
         ALGO_HEAVY,
         ALGO_HMQ1725,
         ALGO_HODL,
+        ALGO_JHA,
         ALGO_KECCAK,
         ALGO_LBRY,
         ALGO_LUFFA,       
         ALGO_LYRA2RE,       
         ALGO_LYRA2REV2,   
         ALGO_LYRA2Z,
-        ALGO_LYRA2ZOIN,
+        ALGO_LYRA2Z330,
         ALGO_M7M,
         ALGO_MYR_GR,      
         ALGO_NEOSCRYPT,
@@ -509,11 +514,14 @@ enum algos {
         ALGO_SCRYPT,
         ALGO_SCRYPTJANE,
         ALGO_SHA256D,
+        ALGO_SHA256T,
         ALGO_SHAVITE3,    
         ALGO_SKEIN,       
         ALGO_SKEIN2,      
         ALGO_S3,          
         ALGO_TIMETRAVEL,
+        ALGO_TIMETRAVEL10,
+        ALGO_TRIBUS,
         ALGO_VANILLA,
         ALGO_VELTOR,
         ALGO_WHIRLPOOL,
@@ -537,25 +545,29 @@ static const char* const algo_names[] = {
         "bastion",
         "blake",
         "blakecoin",
+//        "blake2b",
         "blake2s",
         "bmw",
         "c11",
         "cryptolight",
         "cryptonight",
         "decred",
+        "deep",
+        "dmd-gr",
         "drop",
         "fresh",
         "groestl",
         "heavy",
         "hmq1725",
         "hodl",
+        "jha",
         "keccak",
         "lbry",
         "luffa",
         "lyra2re",
         "lyra2rev2",
         "lyra2z",
-        "lyra2zoin",
+        "lyra2z330",
         "m7m",
         "myr-gr",
         "neoscrypt",
@@ -567,11 +579,14 @@ static const char* const algo_names[] = {
         "scrypt",
         "scryptjane",
         "sha256d",
+        "sha256t",
         "shavite3",
         "skein",
         "skein2",
         "s3",
         "timetravel",
+        "timetravel10",
+        "tribus",
         "vanilla",
         "veltor",
         "whirlpool",
@@ -589,7 +604,7 @@ static const char* const algo_names[] = {
         "\0"
 };
 
-char* algo_name( enum algos a );
+const char* algo_name( enum algos a );
 
 extern enum algos opt_algo;
 extern bool opt_debug;
@@ -652,23 +667,26 @@ Options:\n\
                           blakecoin    blake256r8\n\
                           blake2s      Blake-2 S\n\
                           bmw          BMW 256\n\
-                          c11          Flax\n\
+                          c11          Chaincoin\n\
                           cryptolight  Cryptonight-light\n\
                           cryptonight  cryptonote, Monero (XMR)\n\
                           decred\n\
+                          deep         Deepcoin (DCN)\n\
+                          dmd-gr       Diamond\n\
                           drop         Dropcoin\n\
                           fresh        Fresh\n\
-                          groestl      groestl\n\
+                          groestl      dmd-gr, Groestl coin\n\
                           heavy        Heavy\n\
                           hmq1725      Espers\n\
                           hodl         Hodlcoin\n\
+                          jha          jackppot (Jackpotcoin)\n\
                           keccak       Keccak\n\
                           lbry         LBC, LBRY Credits\n\
                           luffa        Luffa\n\
                           lyra2re      lyra2\n\
-                          lyra2rev2    lyrav2\n\
+                          lyra2rev2    lyrav2, Vertcoin\n\
                           lyra2z       Zcoin (XZC)\n\
-                          lyra2zoin    Zoin (ZOI)\n\
+                          lyra2z330    Lyra2 330 rows, Zoin (ZOI)\n\
                           m7m          Magi (XMG)\n\
                           myr-gr       Myriad-Groestl\n\
                           neoscrypt    NeoScrypt(128, 2, 1)\n\
@@ -680,16 +698,19 @@ Options:\n\
                           scrypt       scrypt(1024, 1, 1) (default)\n\
                           scrypt:N     scrypt(N, 1, 1)\n\
                           scryptjane:nf\n\
-                          sha256d      SHA-256d\n\
+                          sha256d      Double SHA-256\n\
+                          sha256t      Triple SHA-256, Onecoin (OC)\n\
                           shavite3     Shavite3\n\
                           skein        Skein+Sha (Skeincoin)\n\
                           skein2       Double Skein (Woodcoin)\n\
-                          timetravel   Machinecoin\n\
+                          timetravel   timeravel8, Machinecoin (MAC)\n\
+                          timetravel10 Bitcore (BTX)\n\
+                          tribus       Denarius (DNR)\n\
                           vanilla      blake256r8vnl (VCash)\n\
                           veltor\n\
                           whirlpool\n\
                           whirlpoolx\n\
-                          x11          X11\n\
+                          x11          Dash\n\
                           x11evo       Revolvercoin\n\
                           x11gost      sib (SibCoin)\n\
                           x13          X13\n\
